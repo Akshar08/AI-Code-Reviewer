@@ -45,7 +45,7 @@ export default function LoginPage() {
         </p>
  
         <a
-          href="http://localhost:3001/auth/github"
+          href={`${import.meta.env.VITE_API_URL}/auth/github`}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
             background: '#f0f0f8', color: '#0a0a0f',
