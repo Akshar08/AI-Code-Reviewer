@@ -4,7 +4,7 @@ import ReviewPanel from '../components/ReviewPanel.jsx'
 import { useReview } from '../hooks/useReview.js'
 import { useAuth } from '../context/AuthContext.jsx'
  
-const LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'go', 'rust', 'cpp', 'ruby', 'php']
+const LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'go', 'rust', 'C++', 'C', 'ruby', 'php']
  
 const DEFAULT_CODE = `// Paste your code here and click "Review Code"
 function fetchUserData(userId) {
