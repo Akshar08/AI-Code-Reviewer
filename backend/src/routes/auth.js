@@ -10,9 +10,9 @@ authRouter.get('/github',
  
 // GitHub redirects back here after login
 authRouter.get('/github/callback',
-  passport.authenticate('github', { failureRedirect: 'http://localhost:5173/login?error=auth_failed' }),
+  passport.authenticate('github', { failureRedirect: `${process.env.FRONTEND_URL}/login?error=auth_failed` }),
   (req, res) => {
-    res.redirect('http://localhost:5173/dashboard')
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard`)
   }
 )
  
