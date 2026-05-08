@@ -15,7 +15,7 @@ export function useReview() {
     setResult(null)
  
     try {
-      const res = await fetch('http://localhost:3001/api/review', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include', // sends session cookie

@@ -9,7 +9,7 @@ export default function HistoryPage({ onSelectReview, onNewReview }) {
   const [loading, setLoading] = useState(true)
  
   useEffect(() => {
-    fetch('http://localhost:3001/api/review/history', { credentials: 'include' })
+    fetch(`${import.meta.env.VITE_API_URL}/api/review/history`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => setReviews(data.data || []))
       .catch(() => setReviews([]))
