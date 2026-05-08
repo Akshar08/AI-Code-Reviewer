@@ -7,6 +7,8 @@ import { reviewRouter } from './routes/review.js'
 import { authRouter } from './routes/auth.js'
 import { rateLimiter } from './middleware/rateLimiter.js'
 import { errorHandler } from './middleware/errorHandler.js'
+import connectPgSimple from 'connect-pg-simple'
+import { pool } from './db/pool.js'
  
 dotenv.config()
  
@@ -26,11 +28,17 @@ app.use(cors({
 app.set('trust proxy', 1)
 app.use(express.json({ limit: '50kb' }))
  
+const PgSession = connectPgSimple(session)
 // Sessions (needed for passport)
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
-  resave: true,
-  saveUninitialized: true,
+  store: new PgSession({
+    pool: pool,
+    tableName: 'session',
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
   proxy: true,
   cookie: {
     httpOnly: true,
