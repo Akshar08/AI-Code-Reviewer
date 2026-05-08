@@ -8,8 +8,11 @@ export default function HistoryPage({ onSelectReview, onNewReview }) {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
  
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/review/history`, { credentials: 'include' })
+useEffect(() => {
+    const token = localStorage.getItem('token')
+    fetch(`${import.meta.env.VITE_API_URL}/api/review/history`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
       .then(r => r.json())
       .then(data => setReviews(data.data || []))
       .catch(() => setReviews([]))
