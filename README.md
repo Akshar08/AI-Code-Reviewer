@@ -9,7 +9,7 @@ Built with Node.js, React, OpenAI, PostgreSQL, and GitHub OAuth.
 ## Features
 
 - **AI Code Analysis** — Paste any code and get a quality score, bug report, and improvement suggestions powered by GPT-4o-mini
-- **Multi-language support** — JavaScript, TypeScript, Python, Java, Go, Rust, C++, Ruby, PHP
+- **Multi-language support** — JavaScript, TypeScript, Python, Java, Go, Rust, C, C++, Ruby, PHP
 - **GitHub Login** — Secure OAuth authentication
 - **Review History** — Every review is saved to your account so you can track improvement over time
 - **VS Code-style Editor** — Monaco Editor embedded in the browser for a familiar coding experience
