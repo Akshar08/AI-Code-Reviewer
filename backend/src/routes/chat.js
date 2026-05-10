@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/requireAuth.js'
-import { chatOnReview, getChatHistory, saveChatMessage } from '../db/queries.js'
+import { getChatHistory, saveChatMessage } from '../db/queries.js'
 import OpenAI from 'openai'
 import dotenv from 'dotenv'
 
