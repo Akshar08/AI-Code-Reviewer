@@ -44,3 +44,23 @@ export async function getReviewById(reviewId, userId) {
   )
   return result.rows[0] || null
 }
+
+export async function saveChatMessage(reviewId, userId, role, content) {
+  const result = await pool.query(
+    `INSERT INTO chat_messages (review_id, user_id, role, content)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [reviewId, userId, role, content]
+  )
+  return result.rows[0]
+}
+ 
+export async function getChatHistory(reviewId, userId) {
+  const result = await pool.query(
+    `SELECT role, content, created_at
+     FROM chat_messages
+     WHERE review_id = $1 AND user_id = $2
+     ORDER BY created_at ASC`,
+    [reviewId, userId]
+  )
+  return result.rows
+}

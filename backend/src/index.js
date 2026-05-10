@@ -9,6 +9,7 @@ import { rateLimiter } from './middleware/rateLimiter.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import connectPgSimple from 'connect-pg-simple'
 import { pool } from './db/pool.js'
+import { chatRouter } from './routes/chat.js'
  
 dotenv.config()
  
@@ -64,3 +65,5 @@ app.use(errorHandler)
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
 })
+
+app.use('/api/chat', chatRouter)
