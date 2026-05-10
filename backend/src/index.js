@@ -59,11 +59,9 @@ app.use(rateLimiter)
 app.get('/health', (req, res) => res.json({ status: 'ok', user: req.user?.username || null }))
 app.use('/auth', authRouter)
 app.use('/api/review', reviewRouter)
- 
+app.use('/api/chat', chatRouter)
 app.use(errorHandler)
  
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
 })
-
-app.use('/api/chat', chatRouter)
