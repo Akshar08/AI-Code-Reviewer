@@ -36,5 +36,5 @@ export function useReview() {
     }
   }
 
-  return { result, loading, error, submit }
+  return { result, loading, error, submit, setResult }
 }

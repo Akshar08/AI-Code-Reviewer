@@ -6,8 +6,9 @@ import HistoryPage from './pages/HistoryPage.jsx'
  
 function AppInner() {
   const { user, loading } = useAuth()
-  const [page, setPage] = useState('dashboard') // 'dashboard' | 'history'
- 
+  const [page, setPage] = useState('dashboard')
+  const [selectedReviewId, setSelectedReviewId] = useState(null)
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)' }}>
@@ -23,20 +24,29 @@ function AppInner() {
       </div>
     )
   }
- 
+
   if (!user) return <LoginPage />
- 
+
   if (page === 'history') {
     return (
       <HistoryPage
-        onSelectReview={() => setPage('dashboard')}
-        onNewReview={() => setPage('dashboard')}
+        onSelectReview={(id) => {
+          setSelectedReviewId(id)
+          setPage('dashboard')
+        }}
+        onNewReview={() => {
+          setSelectedReviewId(null)
+          setPage('dashboard')
+        }}
       />
     )
   }
- 
+
   return (
-    <DashboardPage onShowHistory={() => setPage('history')} />
+    <DashboardPage
+      onShowHistory={() => setPage('history')}
+      selectedReviewId={selectedReviewId}
+    />
   )
 }
  

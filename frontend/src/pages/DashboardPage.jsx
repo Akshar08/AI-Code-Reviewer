@@ -19,17 +19,35 @@ function fetchUserData(userId) {
   return result;
 }`
 
-export default function DashboardPage({ onShowHistory }) {
+export default function DashboardPage({ onShowHistory, selectedReviewId }) {
   const [code, setCode] = useState(DEFAULT_CODE)
   const [language, setLanguage] = useState('javascript')
-  const [activeTab, setActiveTab] = useState('review') // 'review' | 'chat'
-  const { result, loading, error, submit } = useReview()
+  const [activeTab, setActiveTab] = useState('review')
+  const { result, loading, error, submit, setResult } = useReview()
   const { user, logout } = useAuth()
 
   const handleReview = () => {
     submit(code, language)
     setActiveTab('review')
   }
+
+  useEffect(() => {
+    if (!selectedReviewId) return
+    const token = localStorage.getItem('token')
+    fetch(`${import.meta.env.VITE_API_URL}/api/review/${selectedReviewId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setCode(data.data.code)
+          setLanguage(data.data.language)
+          setResult(data.data)
+          setActiveTab('review')
+        }
+      })
+      .catch(console.error)
+  }, [selectedReviewId])
 
   const tabStyle = (tab) => ({
     padding: '6px 16px', fontSize: 12, fontFamily: 'var(--font-mono)',
