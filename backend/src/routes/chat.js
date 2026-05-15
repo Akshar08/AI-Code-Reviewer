@@ -16,9 +16,26 @@ If the user asks about anything unrelated to code or programming, politely decli
 You will be given the user's code and the AI review results as context. Use this to give specific, helpful answers.
 
 When providing code examples, always use proper markdown code blocks with the language specified.
-Keep responses concise and practical.`
+Keep responses concise and practical.
 
-// POST /api/chat/:reviewId — send a message
+IMPORTANT: You must ALWAYS respond with a valid JSON object in this exact format:
+{
+  "reply": "your conversational response here",
+  "shouldUpdateCode": true or false,
+  "updatedCode": "the full updated code here, or null if no update",
+  "changeSummary": "brief 1-2 sentence summary of what you changed, or null if no update"
+}
+
+Set shouldUpdateCode to true ONLY when the user is explicitly asking you to fix, improve, rewrite, or update their code.
+Examples that should trigger shouldUpdateCode=true:
+- "fix my code", "fix the bugs", "make it better", "improve this", "rewrite this", "make it score higher", "apply the fixes", "update the code"
+
+Examples that should NOT trigger shouldUpdateCode (just answer the question):
+- "what does this bug mean?", "why is this bad?", "explain this error", "how do I fix X"
+
+When shouldUpdateCode is true, updatedCode must contain the COMPLETE improved code (not just snippets).
+The improved code should target a score of 9-10/10.`
+
 chatRouter.post('/:reviewId', requireAuth, async (req, res, next) => {
   try {
     const { reviewId } = req.params
@@ -28,10 +45,8 @@ chatRouter.post('/:reviewId', requireAuth, async (req, res, next) => {
       return res.status(400).json({ error: 'message is required' })
     }
 
-    // Get existing chat history for this review
     const history = await getChatHistory(reviewId, req.user.id)
 
-    // Build messages array for OpenAI
     const messages = [
       {
         role: 'system',
@@ -45,10 +60,9 @@ ${code || 'No code provided'}
 Here is the AI review summary:
 Score: ${reviewContext?.score || 'N/A'}/10
 Summary: ${reviewContext?.summary || 'N/A'}
-Bugs found: ${reviewContext?.bugs?.length || 0}
+Bugs found: ${JSON.stringify(reviewContext?.bugs || [])}
 `,
       },
-      // Include past conversation history
       ...history.map(m => ({ role: m.role, content: m.content })),
       { role: 'user', content: message },
     ]
@@ -56,23 +70,40 @@ Bugs found: ${reviewContext?.bugs?.length || 0}
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
-      temperature: 0.4,
-      max_tokens: 1000,
+      temperature: 0.3,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' },
     })
 
-    const reply = response.choices[0].message.content
+    const raw = response.choices[0].message.content
+    let parsed
 
-    // Save both user message and assistant reply to DB
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      parsed = { reply: raw, shouldUpdateCode: false, updatedCode: null, changeSummary: null }
+    }
+
+    const { reply, shouldUpdateCode, updatedCode, changeSummary } = parsed
+
+    // Save to DB
     await saveChatMessage(reviewId, req.user.id, 'user', message)
     await saveChatMessage(reviewId, req.user.id, 'assistant', reply)
 
-    res.json({ success: true, data: { reply } })
+    res.json({
+      success: true,
+      data: {
+        reply,
+        shouldUpdateCode: !!shouldUpdateCode,
+        updatedCode: shouldUpdateCode ? updatedCode : null,
+        changeSummary: shouldUpdateCode ? changeSummary : null,
+      }
+    })
   } catch (err) {
     next(err)
   }
 })
 
-// GET /api/chat/:reviewId — get chat history
 chatRouter.get('/:reviewId', requireAuth, async (req, res, next) => {
   try {
     const history = await getChatHistory(req.params.reviewId, req.user.id)

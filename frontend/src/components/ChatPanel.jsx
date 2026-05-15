@@ -4,13 +4,11 @@ const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 function CodeBlock({ code, language }) {
   const [copied, setCopied] = useState(false)
-
   const copy = () => {
     navigator.clipboard.writeText(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
-
   return (
     <div style={{ position: 'relative', margin: '8px 0' }}>
       <div style={{
@@ -37,9 +35,7 @@ function CodeBlock({ code, language }) {
 }
 
 function MessageContent({ content }) {
-  // Parse markdown code blocks
   const parts = content.split(/(```[\s\S]*?```)/g)
-
   return (
     <div>
       {parts.map((part, i) => {
@@ -60,14 +56,13 @@ function MessageContent({ content }) {
   )
 }
 
-export default function ChatPanel({ reviewId, code, reviewResult }) {
+export default function ChatPanel({ reviewId, code, reviewResult, onCodeUpdate }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
   const bottomRef = useRef(null)
 
-  // Load chat history
   useEffect(() => {
     if (!reviewId) { setLoadingHistory(false); return }
     const token = localStorage.getItem('token')
@@ -80,14 +75,12 @@ export default function ChatPanel({ reviewId, code, reviewResult }) {
       .finally(() => setLoadingHistory(false))
   }, [reviewId])
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   async function sendMessage() {
     if (!input.trim() || loading) return
-
     const userMessage = input.trim()
     setInput('')
     setMessages(prev => [...prev, { role: 'user', content: userMessage }])
@@ -97,21 +90,20 @@ export default function ChatPanel({ reviewId, code, reviewResult }) {
       const token = localStorage.getItem('token')
       const res = await fetch(`${API}/api/chat/${reviewId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          message: userMessage,
-          code,
-          reviewContext: reviewResult,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: userMessage, code, reviewContext: reviewResult }),
       })
       const data = await res.json()
       if (data.success) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.data.reply }])
+        const { reply, shouldUpdateCode, updatedCode, changeSummary } = data.data
+        setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+
+        // Trigger code update in editor if AI decided to update
+        if (shouldUpdateCode && updatedCode) {
+          onCodeUpdate(updatedCode, changeSummary)
+        }
       }
-    } catch (err) {
+    } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
     } finally {
       setLoading(false)
@@ -133,8 +125,6 @@ export default function ChatPanel({ reviewId, code, reviewResult }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-
-      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {loadingHistory && (
           <p style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>Loading history...</p>
@@ -145,9 +135,10 @@ export default function ChatPanel({ reviewId, code, reviewResult }) {
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>Ask anything about your code!</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                'How do I fix the critical bug?',
-                'Can you rewrite this to be more performant?',
-                'What would make this score higher?',
+                'Fix all the bugs in my code',
+                'Make this code score a 10/10',
+                'What does the critical bug mean?',
+                'Improve the performance of this code',
               ].map(suggestion => (
                 <button key={suggestion} onClick={() => setInput(suggestion)} style={{
                   background: 'var(--bg-elevated)', border: '1px solid var(--border)',
@@ -163,11 +154,7 @@ export default function ChatPanel({ reviewId, code, reviewResult }) {
         )}
 
         {messages.map((msg, i) => (
-          <div key={i} style={{
-            display: 'flex', gap: 10,
-            flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-          }}>
-            {/* Avatar */}
+          <div key={i} style={{ display: 'flex', gap: 10, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
             <div style={{
               width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
               background: msg.role === 'user' ? 'var(--accent)' : 'var(--bg-elevated)',
@@ -178,8 +165,6 @@ export default function ChatPanel({ reviewId, code, reviewResult }) {
             }}>
               {msg.role === 'user' ? 'U' : 'AI'}
             </div>
-
-            {/* Bubble */}
             <div style={{
               maxWidth: '80%',
               background: msg.role === 'user' ? 'var(--accent-dim)' : 'var(--bg-elevated)',
@@ -215,11 +200,9 @@ export default function ChatPanel({ reviewId, code, reviewResult }) {
             </div>
           </div>
         )}
-
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div style={{
         padding: '12px 16px', borderTop: '1px solid var(--border)',
         display: 'flex', gap: 8, background: 'var(--bg-surface)',
@@ -227,12 +210,7 @@ export default function ChatPanel({ reviewId, code, reviewResult }) {
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              sendMessage()
-            }
-          }}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
           placeholder="Ask about your code... (Enter to send)"
           rows={2}
           style={{
@@ -242,17 +220,13 @@ export default function ChatPanel({ reviewId, code, reviewResult }) {
             outline: 'none', lineHeight: 1.5,
           }}
         />
-        <button
-          onClick={sendMessage}
-          disabled={loading || !input.trim()}
-          style={{
-            background: loading || !input.trim() ? 'var(--bg-elevated)' : 'var(--accent)',
-            color: loading || !input.trim() ? 'var(--text-muted)' : 'white',
-            border: 'none', borderRadius: 8, padding: '0 16px',
-            fontSize: 13, fontWeight: 600, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-            fontFamily: 'var(--font-display)', transition: 'all 0.2s', alignSelf: 'stretch',
-          }}
-        >
+        <button onClick={sendMessage} disabled={loading || !input.trim()} style={{
+          background: loading || !input.trim() ? 'var(--bg-elevated)' : 'var(--accent)',
+          color: loading || !input.trim() ? 'var(--text-muted)' : 'white',
+          border: 'none', borderRadius: 8, padding: '0 16px',
+          fontSize: 13, fontWeight: 600, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+          fontFamily: 'var(--font-display)', transition: 'all 0.2s', alignSelf: 'stretch',
+        }}>
           {loading ? '...' : '↑'}
         </button>
       </div>

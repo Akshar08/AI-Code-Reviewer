@@ -21,16 +21,14 @@ function fetchUserData(userId) {
 
 export default function DashboardPage({ onShowHistory, selectedReviewId }) {
   const [code, setCode] = useState(DEFAULT_CODE)
+  const [previousCode, setPreviousCode] = useState(null) // for undo
   const [language, setLanguage] = useState('javascript')
   const [activeTab, setActiveTab] = useState('review')
+  const [aiUpdateBanner, setAiUpdateBanner] = useState(null) // { summary: string }
   const { result, loading, error, submit, setResult } = useReview()
   const { user, logout } = useAuth()
 
-  const handleReview = () => {
-    submit(code, language)
-    setActiveTab('review')
-  }
-
+  // Load selected review from history
   useEffect(() => {
     if (!selectedReviewId) return
     const token = localStorage.getItem('token')
@@ -44,10 +42,33 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
           setLanguage(data.data.language)
           setResult(data.data)
           setActiveTab('review')
+          setPreviousCode(null)
+          setAiUpdateBanner(null)
         }
       })
       .catch(console.error)
   }, [selectedReviewId])
+
+  const handleReview = () => {
+    submit(code, language)
+    setActiveTab('review')
+  }
+
+  // Called by ChatPanel when AI wants to update the code
+  function handleCodeUpdate(newCode, summary) {
+    setPreviousCode(code) // save current code for undo
+    setCode(newCode)
+    setAiUpdateBanner({ summary })
+  }
+
+  // Undo the AI code change
+  function handleUndo() {
+    if (previousCode !== null) {
+      setCode(previousCode)
+      setPreviousCode(null)
+      setAiUpdateBanner(null)
+    }
+  }
 
   const tabStyle = (tab) => ({
     padding: '6px 16px', fontSize: 12, fontFamily: 'var(--font-mono)',
@@ -82,16 +103,12 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <select
-            value={language}
-            onChange={e => setLanguage(e.target.value)}
-            style={{
-              background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)',
-              color: 'var(--text-secondary)', borderRadius: 'var(--radius-sm)',
-              padding: '6px 12px', fontSize: 13, fontFamily: 'var(--font-mono)',
-              cursor: 'pointer', outline: 'none',
-            }}
-          >
+          <select value={language} onChange={e => setLanguage(e.target.value)} style={{
+            background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)',
+            color: 'var(--text-secondary)', borderRadius: 'var(--radius-sm)',
+            padding: '6px 12px', fontSize: 13, fontFamily: 'var(--font-mono)',
+            cursor: 'pointer', outline: 'none',
+          }}>
             {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
 
@@ -134,8 +151,39 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
       {/* Split layout */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* Left: Monaco Editor */}
+        {/* Left: Editor */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)' }}>
+
+          {/* AI Update Banner */}
+          {aiUpdateBanner && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 16px', background: 'rgba(52,211,153,0.08)',
+              borderBottom: '1px solid rgba(52,211,153,0.2)',
+              animation: 'fadeUp 0.3s ease',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: 'var(--green)', fontSize: 13 }}>✦</span>
+                <span style={{ fontSize: 12, color: 'var(--green)', fontFamily: 'var(--font-sans)' }}>
+                  AI updated your code
+                </span>
+                {aiUpdateBanner.summary && (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>
+                    — {aiUpdateBanner.summary}
+                  </span>
+                )}
+              </div>
+              <button onClick={handleUndo} style={{
+                background: 'transparent', border: '1px solid rgba(52,211,153,0.3)',
+                color: 'var(--green)', borderRadius: 6, padding: '3px 10px',
+                fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-mono)',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                ↩ Undo
+              </button>
+            </div>
+          )}
+
           <div style={{
             padding: '8px 16px', fontSize: 11, color: 'var(--text-muted)',
             fontFamily: 'var(--font-mono)', borderBottom: '1px solid var(--border)',
@@ -144,6 +192,7 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
             <span style={{ color: 'var(--accent)', fontSize: 8 }}>●</span>
             editor &nbsp;/&nbsp; {language}
           </div>
+
           <div style={{ flex: 1 }}>
             <Editor
               height="100%"
@@ -166,24 +215,17 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
           </div>
         </div>
 
-        {/* Right: Tabs — Review + Chat */}
+        {/* Right: Tabs */}
         <div style={{ width: 440, flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)' }}>
-
-          {/* Tab bar */}
           <div style={{
             display: 'flex', borderBottom: '1px solid var(--border)',
             background: 'var(--bg-surface)', paddingLeft: 8,
           }}>
-            <button style={tabStyle('review')} onClick={() => setActiveTab('review')}>
-              REVIEW
-            </button>
-            <button
-              style={{
-                ...tabStyle('chat'),
-                display: 'flex', alignItems: 'center', gap: 6,
-              }}
-              onClick={() => setActiveTab('chat')}
-            >
+            <button style={tabStyle('review')} onClick={() => setActiveTab('review')}>REVIEW</button>
+            <button style={{
+              ...tabStyle('chat'),
+              display: 'flex', alignItems: 'center', gap: 6,
+            }} onClick={() => setActiveTab('chat')}>
               CHAT
               {result && (
                 <span style={{
@@ -194,7 +236,6 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
             </button>
           </div>
 
-          {/* Tab content */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {activeTab === 'review' ? (
               <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
@@ -205,6 +246,7 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
                 reviewId={result?.id}
                 code={code}
                 reviewResult={result}
+                onCodeUpdate={handleCodeUpdate}
               />
             )}
           </div>
