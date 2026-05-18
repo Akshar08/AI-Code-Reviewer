@@ -37,7 +37,7 @@ function CodeBlock({ code, language }) {
 function MessageContent({ content }) {
   const parts = content.split(/(```[\s\S]*?```)/g)
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {parts.map((part, i) => {
         if (part.startsWith('```')) {
           const lines = part.slice(3, -3).split('\n')
@@ -45,11 +45,26 @@ function MessageContent({ content }) {
           const code = lines.slice(1).join('\n').trim()
           return <CodeBlock key={i} code={code} language={language} />
         }
+        if (!part.trim()) return null
+        // Render numbered lists nicely
+        const lines = part.split('\n')
         return (
-          <p key={i} style={{
-            fontSize: 13, lineHeight: 1.7, color: 'var(--text-primary)',
-            whiteSpace: 'pre-wrap', margin: 0,
-          }}>{part}</p>
+          <div key={i}>
+            {lines.map((line, j) => {
+              if (!line.trim()) return <div key={j} style={{ height: 6 }} />
+              const isNumbered = /^\d+\./.test(line.trim())
+              return (
+                <p key={j} style={{
+                  fontSize: 13, lineHeight: 1.75,
+                  color: isNumbered ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  fontFamily: 'var(--font-display)',
+                  margin: 0,
+                  paddingLeft: isNumbered ? 0 : 0,
+                  fontWeight: isNumbered ? 500 : 400,
+                }}>{line}</p>
+              )
+            })}
+          </div>
         )
       })}
     </div>
@@ -98,13 +113,15 @@ export default function ChatPanel({ reviewId, code, reviewResult, onCodeUpdate }
         const { reply, shouldUpdateCode, updatedCode, changeSummary } = data.data
         setMessages(prev => [...prev, { role: 'assistant', content: reply }])
 
-        // Trigger code update in editor if AI decided to update
-        if (shouldUpdateCode && updatedCode) {
-          onCodeUpdate(updatedCode, changeSummary)
+        if (shouldUpdateCode && updatedCode && typeof onCodeUpdate === 'function') {
+          onCodeUpdate(updatedCode, changeSummary || 'Code updated by AI')
         }
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, something went wrong. Please try again.'
+      }])
     } finally {
       setLoading(false)
     }
@@ -112,11 +129,18 @@ export default function ChatPanel({ reviewId, code, reviewResult, onCodeUpdate }
 
   if (!reviewId) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, opacity: 0.4 }}>
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', height: '100%', gap: 12, opacity: 0.4
+      }}>
         <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-          <path d="M6 12a3 3 0 013-3h18a3 3 0 013 3v12a3 3 0 01-3 3H9l-6 4V12z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+          <path d="M6 12a3 3 0 013-3h18a3 3 0 013 3v12a3 3 0 01-3 3H9l-6 4V12z"
+            stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
         </svg>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
+        <p style={{
+          fontSize: 13, color: 'var(--text-muted)',
+          fontFamily: 'var(--font-mono)', textAlign: 'center'
+        }}>
           Run a review first to<br/>start chatting about your code
         </p>
       </div>
@@ -125,14 +149,22 @@ export default function ChatPanel({ reviewId, code, reviewResult, onCodeUpdate }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{
+        flex: 1, overflowY: 'auto', padding: '16px 20px',
+        display: 'flex', flexDirection: 'column', gap: 16
+      }}>
         {loadingHistory && (
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>Loading history...</p>
+          <p style={{
+            fontSize: 12, color: 'var(--text-muted)',
+            fontFamily: 'var(--font-mono)', textAlign: 'center'
+          }}>Loading history...</p>
         )}
 
         {!loadingHistory && messages.length === 0 && (
           <div style={{ textAlign: 'center', marginTop: 20 }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>Ask anything about your code!</p>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              Ask anything about your code!
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
                 'Fix all the bugs in my code',
@@ -154,7 +186,10 @@ export default function ChatPanel({ reviewId, code, reviewResult, onCodeUpdate }
         )}
 
         {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', gap: 10, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
+          <div key={i} style={{
+            display: 'flex', gap: 10,
+            flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+          }}>
             <div style={{
               width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
               background: msg.role === 'user' ? 'var(--accent)' : 'var(--bg-elevated)',
@@ -166,7 +201,7 @@ export default function ChatPanel({ reviewId, code, reviewResult, onCodeUpdate }
               {msg.role === 'user' ? 'U' : 'AI'}
             </div>
             <div style={{
-              maxWidth: '80%',
+              maxWidth: '85%',
               background: msg.role === 'user' ? 'var(--accent-dim)' : 'var(--bg-elevated)',
               border: `1px solid ${msg.role === 'user' ? 'var(--accent-glow)' : 'var(--border)'}`,
               borderRadius: msg.role === 'user' ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
@@ -210,7 +245,9 @@ export default function ChatPanel({ reviewId, code, reviewResult, onCodeUpdate }
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+          }}
           placeholder="Ask about your code... (Enter to send)"
           rows={2}
           style={{
@@ -224,7 +261,8 @@ export default function ChatPanel({ reviewId, code, reviewResult, onCodeUpdate }
           background: loading || !input.trim() ? 'var(--bg-elevated)' : 'var(--accent)',
           color: loading || !input.trim() ? 'var(--text-muted)' : 'white',
           border: 'none', borderRadius: 8, padding: '0 16px',
-          fontSize: 13, fontWeight: 600, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+          fontSize: 18, fontWeight: 600,
+          cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
           fontFamily: 'var(--font-display)', transition: 'all 0.2s', alignSelf: 'stretch',
         }}>
           {loading ? '...' : '↑'}

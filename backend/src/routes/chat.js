@@ -13,28 +13,39 @@ const SYSTEM_PROMPT = `You are a helpful code review assistant. You ONLY answer 
 
 If the user asks about anything unrelated to code or programming, politely decline and redirect them back to discussing their code.
 
-You will be given the user's code and the AI review results as context. Use this to give specific, helpful answers.
+You will be given the user's code and the AI review results as context.
 
-When providing code examples, always use proper markdown code blocks with the language specified.
-Keep responses concise and practical.
-
-IMPORTANT: You must ALWAYS respond with a valid JSON object in this exact format:
+You must ALWAYS respond with a valid JSON object in this exact format:
 {
-  "reply": "your conversational response here",
+  "reply": "your detailed conversational response here",
   "shouldUpdateCode": true or false,
   "updatedCode": "the full updated code here, or null if no update",
-  "changeSummary": "brief 1-2 sentence summary of what you changed, or null if no update"
+  "changeSummary": "brief 1-2 sentence summary of what changed overall"
 }
 
-Set shouldUpdateCode to true ONLY when the user is explicitly asking you to fix, improve, rewrite, or update their code.
-Examples that should trigger shouldUpdateCode=true:
-- "fix my code", "fix the bugs", "make it better", "improve this", "rewrite this", "make it score higher", "apply the fixes", "update the code"
+WHEN shouldUpdateCode is true:
+1. "updatedCode" must contain the COMPLETE improved code — never partial snippets
+2. Add inline comments in the code on EVERY line you changed or added, using this format:
+   - For fixes: // FIXED: what you fixed and why
+   - For additions: // ADDED: what you added and why  
+   - For removals: replace removed code with a comment: // REMOVED: what was here and why it was removed
+3. "reply" must include ALL of these sections:
+   - A short intro saying what you did overall
+   - A numbered list of EVERY change made, referencing the exact line numbers
+   - For each change: what the old code was, what the new code is, and WHY it was changed
+   - A closing note estimating the new score
+   Example reply format:
+   "I've updated your code with the following fixes:\n\n1. Line 4 — Changed xhr.open(..., false) to xhr.open(..., true): The third parameter being 'false' made this a synchronous request which blocks the main thread. Changed to 'true' for async.\n\n2. Line 5-8 — Added onload handler: ..."
+4. "changeSummary" is a short 1-sentence summary for the banner (e.g. "Fixed synchronous XHR, added error handling, removed var declarations")
 
-Examples that should NOT trigger shouldUpdateCode (just answer the question):
-- "what does this bug mean?", "why is this bad?", "explain this error", "how do I fix X"
+WHEN shouldUpdateCode is false:
+- Just answer the question helpfully with code examples in markdown code blocks where relevant
+- "updatedCode" must be null
+- "changeSummary" must be null
 
-When shouldUpdateCode is true, updatedCode must contain the COMPLETE improved code (not just snippets).
-The improved code should target a score of 9-10/10.`
+Set shouldUpdateCode to true ONLY when the user explicitly asks to fix, improve, rewrite, or update code.
+Triggers: "fix", "improve", "make it better", "make it score higher", "rewrite", "update the code", "apply fixes"
+NOT triggers: "explain", "what does", "why is", "how do I", "what is"`
 
 chatRouter.post('/:reviewId', requireAuth, async (req, res, next) => {
   try {
@@ -60,7 +71,8 @@ ${code || 'No code provided'}
 Here is the AI review summary:
 Score: ${reviewContext?.score || 'N/A'}/10
 Summary: ${reviewContext?.summary || 'N/A'}
-Bugs found: ${JSON.stringify(reviewContext?.bugs || [])}
+Bugs: ${JSON.stringify(reviewContext?.bugs || [])}
+Improvements: ${JSON.stringify(reviewContext?.improvements || [])}
 `,
       },
       ...history.map(m => ({ role: m.role, content: m.content })),
@@ -70,8 +82,8 @@ Bugs found: ${JSON.stringify(reviewContext?.bugs || [])}
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
-      temperature: 0.3,
-      max_tokens: 2000,
+      temperature: 0.2,
+      max_tokens: 3000,
       response_format: { type: 'json_object' },
     })
 
@@ -86,7 +98,6 @@ Bugs found: ${JSON.stringify(reviewContext?.bugs || [])}
 
     const { reply, shouldUpdateCode, updatedCode, changeSummary } = parsed
 
-    // Save to DB
     await saveChatMessage(reviewId, req.user.id, 'user', message)
     await saveChatMessage(reviewId, req.user.id, 'assistant', reply)
 

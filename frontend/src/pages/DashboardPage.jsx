@@ -21,14 +21,13 @@ function fetchUserData(userId) {
 
 export default function DashboardPage({ onShowHistory, selectedReviewId }) {
   const [code, setCode] = useState(DEFAULT_CODE)
-  const [previousCode, setPreviousCode] = useState(null) // for undo
+  const [previousCode, setPreviousCode] = useState(null)
   const [language, setLanguage] = useState('javascript')
   const [activeTab, setActiveTab] = useState('review')
-  const [aiUpdateBanner, setAiUpdateBanner] = useState(null) // { summary: string }
+  const [aiUpdateBanner, setAiUpdateBanner] = useState(null)
   const { result, loading, error, submit, setResult } = useReview()
   const { user, logout } = useAuth()
 
-  // Load selected review from history
   useEffect(() => {
     if (!selectedReviewId) return
     const token = localStorage.getItem('token')
@@ -54,14 +53,12 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
     setActiveTab('review')
   }
 
-  // Called by ChatPanel when AI wants to update the code
   function handleCodeUpdate(newCode, summary) {
-    setPreviousCode(code) // save current code for undo
+    setPreviousCode(code)
     setCode(newCode)
-    setAiUpdateBanner({ summary })
+    setAiUpdateBanner({ summary: summary || 'Code updated by AI' })
   }
 
-  // Undo the AI code change
   function handleUndo() {
     if (previousCode !== null) {
       setCode(previousCode)
@@ -152,48 +149,69 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* Left: Editor */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)', overflow: 'hidden' }}>
 
           {/* AI Update Banner */}
           {aiUpdateBanner && (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '8px 16px', background: 'rgba(52,211,153,0.08)',
-              borderBottom: '1px solid rgba(52,211,153,0.2)',
-              animation: 'fadeUp 0.3s ease',
+              padding: '10px 16px',
+              background: 'rgba(52,211,153,0.1)',
+              borderBottom: '1px solid rgba(52,211,153,0.25)',
+              flexShrink: 0,
+              zIndex: 10,
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: 'var(--green)', fontSize: 13 }}>✦</span>
-                <span style={{ fontSize: 12, color: 'var(--green)', fontFamily: 'var(--font-sans)' }}>
-                  AI updated your code
-                </span>
-                {aiUpdateBanner.summary && (
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>
-                    — {aiUpdateBanner.summary}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 15, flexShrink: 0 }}>✦</span>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{
+                    fontSize: 12, fontWeight: 600, color: '#34d399',
+                    fontFamily: 'var(--font-display)', display: 'block',
+                  }}>
+                    AI updated your code
                   </span>
-                )}
+                  {aiUpdateBanner.summary && (
+                    <span style={{
+                      fontSize: 11, color: 'var(--text-muted)',
+                      fontFamily: 'var(--font-display)',
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap', display: 'block',
+                    }}>
+                      {aiUpdateBanner.summary}
+                    </span>
+                  )}
+                </div>
               </div>
-              <button onClick={handleUndo} style={{
-                background: 'transparent', border: '1px solid rgba(52,211,153,0.3)',
-                color: 'var(--green)', borderRadius: 6, padding: '3px 10px',
-                fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-mono)',
-                display: 'flex', alignItems: 'center', gap: 4,
-              }}>
+              <button
+                onClick={handleUndo}
+                style={{
+                  background: 'rgba(52,211,153,0.15)',
+                  border: '1px solid rgba(52,211,153,0.4)',
+                  color: '#34d399', borderRadius: 6,
+                  padding: '5px 14px', fontSize: 12,
+                  cursor: 'pointer', fontFamily: 'var(--font-mono)',
+                  fontWeight: 600, flexShrink: 0, marginLeft: 12,
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 ↩ Undo
               </button>
             </div>
           )}
 
+          {/* Editor tab bar */}
           <div style={{
             padding: '8px 16px', fontSize: 11, color: 'var(--text-muted)',
             fontFamily: 'var(--font-mono)', borderBottom: '1px solid var(--border)',
-            background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', gap: 6,
+            background: 'var(--bg-surface)', display: 'flex', alignItems: 'center',
+            gap: 6, flexShrink: 0,
           }}>
             <span style={{ color: 'var(--accent)', fontSize: 8 }}>●</span>
             editor &nbsp;/&nbsp; {language}
           </div>
 
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minHeight: 0 }}>
             <Editor
               height="100%"
               language={language === 'cpp' ? 'cpp' : language}
@@ -216,16 +234,19 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
         </div>
 
         {/* Right: Tabs */}
-        <div style={{ width: 440, flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)' }}>
+        <div style={{
+          width: 440, flexShrink: 0, display: 'flex',
+          flexDirection: 'column', background: 'var(--bg-surface)',
+        }}>
           <div style={{
             display: 'flex', borderBottom: '1px solid var(--border)',
-            background: 'var(--bg-surface)', paddingLeft: 8,
+            background: 'var(--bg-surface)', paddingLeft: 8, flexShrink: 0,
           }}>
-            <button style={tabStyle('review')} onClick={() => setActiveTab('review')}>REVIEW</button>
-            <button style={{
-              ...tabStyle('chat'),
-              display: 'flex', alignItems: 'center', gap: 6,
-            }} onClick={() => setActiveTab('chat')}>
+            <button style={tabStyle('review')} onClick={() => setActiveTab('review')}>
+              REVIEW
+            </button>
+            <button style={{ ...tabStyle('chat'), display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => setActiveTab('chat')}>
               CHAT
               {result && (
                 <span style={{
@@ -236,7 +257,7 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
             </button>
           </div>
 
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {activeTab === 'review' ? (
               <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
                 <ReviewPanel result={result} loading={loading} error={error} />
