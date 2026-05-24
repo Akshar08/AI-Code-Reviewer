@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import ReviewPanel from '../components/ReviewPanel.jsx'
 import ChatPanel from '../components/ChatPanel.jsx'
+import DuplicateReviewModal from '../components/DuplicateReviewModal.jsx'
 import { useReview } from '../hooks/useReview.js'
 import { useAuth } from '../context/AuthContext.jsx'
 
 const LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'go', 'rust', 'c', 'cpp', 'ruby', 'php']
+const CODE_SESSION_KEY = 'codereview_code'
+const LANG_SESSION_KEY = 'codereview_lang'
 
 const DEFAULT_CODE = `// Paste your code here and click "Review Code"
 function fetchUserData(userId) {
@@ -20,14 +23,25 @@ function fetchUserData(userId) {
 }`
 
 export default function DashboardPage({ onShowHistory, selectedReviewId }) {
-  const [code, setCode] = useState(DEFAULT_CODE)
+  const [code, setCode] = useState(() => localStorage.getItem(CODE_SESSION_KEY) || DEFAULT_CODE)
+  const [language, setLanguage] = useState(() => localStorage.getItem(LANG_SESSION_KEY) || 'javascript')
   const [previousCode, setPreviousCode] = useState(null)
-  const [language, setLanguage] = useState('javascript')
+  const [redoCode, setRedoCode] = useState(null)
   const [activeTab, setActiveTab] = useState('review')
   const [aiUpdateBanner, setAiUpdateBanner] = useState(null)
-  const { result, loading, error, submit, setResult } = useReview()
+  const { result, loading, error, submit, setResult, duplicateData, clearDuplicate } = useReview()
   const { user, logout } = useAuth()
 
+  // Persist code + language to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem(CODE_SESSION_KEY, code)
+  }, [code])
+
+  useEffect(() => {
+    localStorage.setItem(LANG_SESSION_KEY, language)
+  }, [language])
+
+  // Load selected review from history
   useEffect(() => {
     if (!selectedReviewId) return
     const token = localStorage.getItem('token')
@@ -42,6 +56,7 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
           setResult(data.data)
           setActiveTab('review')
           setPreviousCode(null)
+          setRedoCode(null)
           setAiUpdateBanner(null)
         }
       })
@@ -53,17 +68,67 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
     setActiveTab('review')
   }
 
+  // AI updates the code
   function handleCodeUpdate(newCode, summary) {
     setPreviousCode(code)
+    setRedoCode(null) // clear redo when new update comes in
     setCode(newCode)
     setAiUpdateBanner({ summary: summary || 'Code updated by AI' })
   }
 
+  // Undo AI change
   function handleUndo() {
     if (previousCode !== null) {
+      setRedoCode(code) // save current for redo
       setCode(previousCode)
       setPreviousCode(null)
       setAiUpdateBanner(null)
+    }
+  }
+
+  // Redo AI change
+  function handleRedo() {
+    if (redoCode !== null) {
+      setPreviousCode(code)
+      setCode(redoCode)
+      setRedoCode(null)
+      setAiUpdateBanner({ summary: 'Re-applied AI changes' })
+    }
+  }
+
+  // Duplicate modal — go to existing review
+  async function handleGoToExisting() {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/review/${duplicateData.id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    const data = await res.json()
+    if (data.success) {
+      setCode(data.data.code)
+      setLanguage(data.data.language)
+      setResult(data.data)
+      setActiveTab('chat')
+    }
+    clearDuplicate()
+  }
+
+  // Duplicate modal — create new entry anyway
+  async function handleCreateNew() {
+    clearDuplicate()
+    const token = localStorage.getItem('token')
+    const { reviewCode } = await import('../api/reviewApi.js')
+    setResult(null)
+    try {
+      // Force a new review by calling the AI directly
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/review/force`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code, language }),
+      })
+      const data = await res.json()
+      if (data.success) setResult(data.data)
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -78,6 +143,16 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+
+      {/* Duplicate Review Modal */}
+      {duplicateData && (
+        <DuplicateReviewModal
+          review={duplicateData}
+          onGoToExisting={handleGoToExisting}
+          onCreateNew={handleCreateNew}
+          onClose={clearDuplicate}
+        />
+      )}
 
       {/* Header */}
       <header style={{
@@ -158,8 +233,7 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
               padding: '10px 16px',
               background: 'rgba(52,211,153,0.1)',
               borderBottom: '1px solid rgba(52,211,153,0.25)',
-              flexShrink: 0,
-              zIndex: 10,
+              flexShrink: 0, zIndex: 10,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
                 <span style={{ fontSize: 15, flexShrink: 0 }}>✦</span>
@@ -167,40 +241,46 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
                   <span style={{
                     fontSize: 12, fontWeight: 600, color: '#34d399',
                     fontFamily: 'var(--font-display)', display: 'block',
-                  }}>
-                    AI updated your code
-                  </span>
+                  }}>AI updated your code</span>
                   {aiUpdateBanner.summary && (
                     <span style={{
                       fontSize: 11, color: 'var(--text-muted)',
                       fontFamily: 'var(--font-display)',
                       overflow: 'hidden', textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap', display: 'block',
-                    }}>
-                      {aiUpdateBanner.summary}
-                    </span>
+                    }}>{aiUpdateBanner.summary}</span>
                   )}
                 </div>
               </div>
-              <button
-                onClick={handleUndo}
-                style={{
-                  background: 'rgba(52,211,153,0.15)',
-                  border: '1px solid rgba(52,211,153,0.4)',
-                  color: '#34d399', borderRadius: 6,
-                  padding: '5px 14px', fontSize: 12,
-                  cursor: 'pointer', fontFamily: 'var(--font-mono)',
-                  fontWeight: 600, flexShrink: 0, marginLeft: 12,
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                ↩ Undo
-              </button>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                {/* Undo */}
+                {previousCode !== null && (
+                  <button onClick={handleUndo} style={{
+                    background: 'rgba(52,211,153,0.15)',
+                    border: '1px solid rgba(52,211,153,0.4)',
+                    color: '#34d399', borderRadius: 6,
+                    padding: '5px 14px', fontSize: 12,
+                    cursor: 'pointer', fontFamily: 'var(--font-mono)',
+                    fontWeight: 600, whiteSpace: 'nowrap',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}>↩ Undo</button>
+                )}
+                {/* Redo */}
+                {redoCode !== null && (
+                  <button onClick={handleRedo} style={{
+                    background: 'rgba(124,109,250,0.15)',
+                    border: '1px solid rgba(124,109,250,0.4)',
+                    color: 'var(--accent)', borderRadius: 6,
+                    padding: '5px 14px', fontSize: 12,
+                    cursor: 'pointer', fontFamily: 'var(--font-mono)',
+                    fontWeight: 600, whiteSpace: 'nowrap',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}>↪ Redo</button>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Editor tab bar */}
           <div style={{
             padding: '8px 16px', fontSize: 11, color: 'var(--text-muted)',
             fontFamily: 'var(--font-mono)', borderBottom: '1px solid var(--border)',
@@ -214,7 +294,7 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
           <div style={{ flex: 1, minHeight: 0 }}>
             <Editor
               height="100%"
-              language={language === 'cpp' ? 'cpp' : language}
+              language={language}
               value={code}
               onChange={val => setCode(val || '')}
               theme="vs-dark"
@@ -234,17 +314,12 @@ export default function DashboardPage({ onShowHistory, selectedReviewId }) {
         </div>
 
         {/* Right: Tabs */}
-        <div style={{
-          width: 440, flexShrink: 0, display: 'flex',
-          flexDirection: 'column', background: 'var(--bg-surface)',
-        }}>
+        <div style={{ width: 440, flexShrink: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)' }}>
           <div style={{
             display: 'flex', borderBottom: '1px solid var(--border)',
             background: 'var(--bg-surface)', paddingLeft: 8, flexShrink: 0,
           }}>
-            <button style={tabStyle('review')} onClick={() => setActiveTab('review')}>
-              REVIEW
-            </button>
+            <button style={tabStyle('review')} onClick={() => setActiveTab('review')}>REVIEW</button>
             <button style={{ ...tabStyle('chat'), display: 'flex', alignItems: 'center', gap: 6 }}
               onClick={() => setActiveTab('chat')}>
               CHAT

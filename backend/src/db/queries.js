@@ -64,3 +64,22 @@ export async function getChatHistory(reviewId, userId) {
   )
   return result.rows
 }
+
+export async function findExactCodeMatch(userId, code) {
+  const result = await pool.query(
+    `SELECT id, language, score, summary, created_at
+     FROM reviews
+     WHERE user_id = $1 AND code = $2
+     ORDER BY created_at DESC LIMIT 1`,
+    [userId, code]
+  )
+  return result.rows[0] || null
+}
+ 
+export async function deleteReview(reviewId, userId) {
+  await pool.query(
+    'DELETE FROM reviews WHERE id = $1 AND user_id = $2',
+    [reviewId, userId]
+  )
+}
+ 
